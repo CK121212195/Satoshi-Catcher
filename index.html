@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satoshi Catcher - Earn Bitcoin</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 500px;
+            background: #1e293b;
+            border: 4px solid #f59e0b;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            display: block;
+            background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
+        }
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        #screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #f59e0b;
+            color: #1e293b;
+            border: none;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.1s;
+        }
+        button:hover {
+            background: #d97706;
+            transform: scale(1.05);
+        }
+        #withdraw-btn {
+            background: #10b981;
+            color: white;
+            display: none;
+        }
+        #withdraw-btn:hover {
+            background: #059669;
+        }
+        .desc {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    
+    <div id="ui">
+        <div id="score-display">Score: 0</div>
+        <div id="lives-display">❤️ ❤️ ❤️</div>
+    </div>
+
+    <!-- スタート / ゲームオーバー画面 -->
+    <div id="screen">
+        <h2 id="screen-title">Satoshi Catcher</h2>
+        <p id="screen-text">落ちてくる ₿ をキャッチしよう！<br>💩を避けて100点を目指せ！</p>
+        <button id="action-btn" onclick="startGame()">ゲームスタート</button>
+        <button id="withdraw-btn" onclick="requestPayout()">1 sat を受け取る！</button>
+        <p class="desc">※100点達成でライトニング決済から報酬を請求できます</p>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const screenDiv = document.getElementById('screen');
+const screenTitle = document.getElementById('screen-title');
+const screenText = document.getElementById('screen-text');
+const actionBtn = document.getElementById('action-btn');
+const withdrawBtn = document.getElementById('withdraw-btn');
+const scoreDisplay = document.getElementById('score-display');
+const livesDisplay = document.getElementById('lives-display');
+
+let score = 0;
+let lives = 3;
+let gameOver = false;
+let gameActive = false;
+let items = [];
+let spawnTimer = 0;
+
+const basket = {
+    x: 170,
+    y: 450,
+    width: 60,
+    height: 15,
+    color: #f59e0b
+};
+
+// マウス・タッチ操作
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const root = document.documentElement;
+    const mouseX = e.clientX - rect.left - root.scrollLeft;
+    basket.x = Math.max(0, Math.min(canvas.width - basket.width, mouseX - basket.width / 2));
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+    basket.x = Math.max(0, Math.min(canvas.width - basket.width, touchX - basket.width / 2));
+});
+
+function startGame() {
+    score = 0;
+    lives = 3;
+    items = [];
+    gameOver = false;
+    gameActive = true;
+    screenDiv.style.display = 'none';
+    withdrawBtn.style.display = 'none';
+    actionBtn.style.display = 'block';
+    updateUI();
+    gameLoop();
+}
+
+function updateUI() {
+    scoreDisplay.innerText = `Score: ${score}`;
+    livesDisplay.innerText = '❤️ '.repeat(lives);
+}
+
+function spawnItem() {
+    const isBtc = Math.random() > 0.3; // 70%でBTC、30%でシットコイン
+    items.push({
+        x: Math.random() * (canvas.width - 24) + 12,
+        y: 0,
+        radius: 12,
+        speed: Math.random() * 2 + 3,
+        isBtc: isBtc
+    });
+}
+
+function gameLoop() {
+    if (!gameActive) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // バスケット描画
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.roundRect(basket.x, basket.y, basket.width, basket.height, 5);
+    ctx.fill();
+
+    // アイテム生成管理
+    spawnTimer++;
+    if (spawnTimer > 40) {
+        spawnItem();
+        spawnTimer = 0;
+    }
+
+    // アイテム処理
+    for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        item.y += item.speed;
+
+        // 描画
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+        ctx.fillStyle = item.isBtc ? '#f59e0b' : '#64748b';
+        ctx.fill();
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.isBtc ? '₿' : '💩', item.x, item.y);
+
+        // バスケットとの衝突判定
+        if (item.y + item.radius >= basket.y && item.y - item.radius <= basket.y + basket.height) {
+            if (item.x >= basket.x && item.x <= basket.x + basket.width) {
+                if (item.isBtc) {
+                    score += 10;
+                } else {
+                    lives--;
+                }
+                updateUI();
+                items.splice(i, 1);
+                continue;
+            }
+        }
+
+        // 画面外落下
+        if (item.y - item.radius > canvas.height) {
+            if (item.isBtc) {
+                // ビットコインを逃してもペナルティなし（またはマイナスにしても良い）
+            }
+            items.splice(i, 1);
+        }
+    }
+
+    // ゲームオーバー判定
+    if (lives <= 0) {
+        endGame();
+        return;
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+    gameActive = false;
+    screenDiv.style.display = 'flex';
+    screenTitle.innerText = 'Game Over';
+    
+    if (score >= 100) {
+        screenText.innerHTML = `お見事！ スコア: <span style="color:#10b981">${score}</span><br>1 sat を請求できます！`;
+        actionBtn.style.display = 'none';
+        withdrawBtn.style.display = 'block';
+    } else {
+        screenText.innerHTML = `スコア: ${score}<br>100点以上でビットコインが貰えます。<br>もう一度挑戦しよう！`;
+        actionBtn.innerText = 'もう一度プレイ';
+    }
+}
+
+// ビットコイン送金リクエスト（次のステップで接続）
+function requestPayout() {
+    const lnAddress = prompt("送金先のライトニングアドレス（例: user@getalby.com）を入力してください：");
+    if (!lnAddress) return;
+
+    alert("送金処理を開始します...\n（※現在はシミュレーションモードです。実際の実装にはサーバーが必要です）");
+    
+    // TODO: ここで自前のサーバーAPIを叩いて送金を実行する
+    console.log(`${lnAddress} に 1 sat の送金を要求します。`);
+}
+</script>
+</body>
+</html>
