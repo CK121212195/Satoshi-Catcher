@@ -41,6 +41,7 @@
             font-size: 18px;
             font-weight: bold;
             pointer-events: none;
+            z-index: 10;
         }
         #screen {
             position: absolute;
@@ -56,6 +57,7 @@
             text-align: center;
             padding: 20px;
             box-sizing: border-box;
+            z-index: 20;
         }
         button {
             background: #f59e0b;
@@ -132,7 +134,7 @@ const basket = {
     y: 450,
     width: 60,
     height: 15,
-    color: #f59e0b
+    color: '#f59e0b' // シングルクォーテーションを補完
 };
 
 // マウス・タッチ操作
@@ -184,9 +186,9 @@ function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // バスケット描画
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = basket.color;
     ctx.beginPath();
-    ctx.roundRect(basket.x, basket.y, basket.width, basket.height, 5);
+    ctx.rect(basket.x, basket.y, basket.width, basket.height); // 互換性向上のため rect に修正
     ctx.fill();
 
     // アイテム生成管理
@@ -229,9 +231,6 @@ function gameLoop() {
 
         // 画面外落下
         if (item.y - item.radius > canvas.height) {
-            if (item.isBtc) {
-                // ビットコインを逃してもペナルティなし（またはマイナスにしても良い）
-            }
             items.splice(i, 1);
         }
     }
@@ -260,14 +259,11 @@ function endGame() {
     }
 }
 
-// ビットコイン送金リクエスト（次のステップで接続）
 function requestPayout() {
     const lnAddress = prompt("送金先のライトニングアドレス（例: user@getalby.com）を入力してください：");
     if (!lnAddress) return;
 
-    alert("送金処理を開始します...\n（※現在はシミュレーションモードです。実際の実装にはサーバーが必要です）");
-    
-    // TODO: ここで自前のサーバーAPIを叩いて送金を実行する
+    alert("送金処理を開始します...\n（※現在はシミュレーションモードです）");
     console.log(`${lnAddress} に 1 sat の送金を要求します。`);
 }
 </script>
